@@ -1,4 +1,28 @@
+# ==============================================================================
+# 0. PyKRX Python 3.12+ 호환성 패치 (pkg_resources 이슈 해결)
+# ==============================================================================
+import sys
+import setuptools._distutils as distutils
+import setuptools
+
+# pkg_resources 임포트 에러 방지용 모듈 매핑
+try:
+    import pkg_resources
+except ImportError:
+    import pip._vendor.pkg_resources as pkg_resources
+    sys.modules['pkg_resources'] = pkg_resources
+
+# 패치 후 pykrx 불러오기
 import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import requests
+from bs4 import BeautifulSoup
+from pykrx import stock
+from datetime import datetime
+
+# ... (이하 기존 app.py 코드 동일)import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
