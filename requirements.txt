@@ -5,3 +5,4 @@ plotly
 requests
 pykrx
 beautifulsoup4
+setuptools
