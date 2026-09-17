@@ -24,7 +24,7 @@ import time
 st.set_page_config(page_title="Arbitrage CA Dashboard", layout="wide")
 
 # ==============================================================================
-# 1. API Secrets 및 실시간 데이터 수집 함수
+# 1. API Secrets 및 데이터 수집 함수
 # ==============================================================================
 try:
     DART_API_KEY = st.secrets["DART_API_KEY"]
@@ -64,7 +64,7 @@ def get_realtime_futures_and_etf():
 
 @st.cache_data(ttl=300)
 def get_realtime_stock_basis():
-    """PyKRX 기반 개별주식 현선물 베이시스 산출 (최근 영업일 자동 탐색)"""
+    """PyKRX 기반 개별주식 현선물 베이시스 산출"""
     try:
         df_spot = pd.DataFrame()
         for i in range(7):
@@ -116,7 +116,7 @@ def get_realtime_stock_basis():
 
 @st.cache_data(ttl=300)
 def fetch_realtime_dart_ca_events(api_key):
-    """DART API 경량화 요청 및 CA 공시 수집"""
+    """DART Open API 기반 Corporate Action 수집"""
     if not api_key:
         return pd.DataFrame()
 
@@ -173,7 +173,7 @@ def fetch_realtime_dart_ca_events(api_key):
 
 @st.cache_data(ttl=300)
 def fetch_distressed_liquidation_data(api_key):
-    """[Module 3] 상장폐지위험 종목 및 청산가치 차익거래(Liquidation Arbitrage) 수집"""
+    """[Module 3] 상장폐지위험 종목 및 청산가치 차익거래 수집"""
     distressed_list = [
         {"종목코드": "001230", "종목명": "ABC바이오", "상태": "정리매매", "현재가(원)": 450, "BPS(청산가치)": 1800, "청산 괴리율(%)": -75.0, "DART 경고 공시": "감사의견 거절 (범위제한)", "접수일자": "2026.09.12"},
         {"종목코드": "034560", "종목명": "XYZ테크", "상태": "관리종목", "현재가(원)": 1200, "BPS(청산가치)": 3500, "청산 괴리율(%)": -65.7, "DART 경고 공시": "자본잠식률 50% 이상", "접수일자": "2026.09.15"},
@@ -181,6 +181,17 @@ def fetch_distressed_liquidation_data(api_key):
         {"종목코드": "056780", "종목명": "글로벌C&T", "상태": "정리매매", "현재가(원)": 180, "BPS(청산가치)": 600, "청산 괴리율(%)": -70.0, "DART 경고 공시": "해산사유 발생", "접수일자": "2026.09.10"},
     ]
     return pd.DataFrame(distressed_list)
+
+@st.cache_data(ttl=300)
+def fetch_index_rebalance_data():
+    """[Module 4] 지수/ETF 리밸런싱 이벤트 수급 스캐너 데이터"""
+    rebalance_list = [
+        {"종목코드": "259960", "종목명": "크래프톤", "지수 구분": "KOSPI200", "구분": "편입예상", "시가총액(억원)": 125000, "예상 패시브 유입액(억원)": 1850, "ADTV 대비 비율(배)": 4.2, "외국인 연속수급": "12일 연속 순매수"},
+        {"종목코드": "329180", "종목명": "HD현대중공업", "지수 구분": "KOSPI200", "구분": "편입예상", "시가총액(억원)": 98000, "예상 패시브 유입액(억원)": 1420, "ADTV 대비 비율(배)": 3.8, "외국인 연속수급": "8일 연속 순매수"},
+        {"종목코드": "003620", "종목명": "KG모빌리티", "지수 구분": "KOSPI200", "구분": "편출예상", "시가총액(억원)": 12000, "예상 패시브 유입액(억원)": -320, "ADTV 대비 비율(배)": -2.5, "외국인 연속수급": "5일 연속 순매도"},
+        {"종목코드": "247540", "종목명": "에코프로비엠", "지수 구분": "MSCI Korea", "구분": "비중확대", "시가총액(억원)": 185000, "예상 패시브 유입액(억원)": 2100, "ADTV 대비 비율(배)": 2.1, "외국인 연속수급": "15일 연속 순매수"},
+    ]
+    return pd.DataFrame(rebalance_list)
 
 # ==============================================================================
 # 2. [Module 1] 지수 & 개별주식 실시간 베이시스 스캐너
@@ -282,7 +293,7 @@ with tab6:
 st.markdown("---")
 
 # ==============================================================================
-# 4. [Module 3] 상장폐지·재무위기 위험 종목 및 청산 가치 차익거래 스캐너
+# 4. [Module 3] 상장폐지·재무위기 위험 종목 스캐너
 # ==============================================================================
 st.subheader("⚠️ 상장폐지·재무위기 위험 종목 & 청산가치(Liquidation) 차익거래")
 st.caption("정리매매 및 관리종목 지정 대상 중 주당 청산가치(BPS) 대비 시장가가 과도하게 할인된 Special Situation 포착")
@@ -307,3 +318,32 @@ if not df_distressed.empty:
     )
 else:
     st.info("현재 포착된 상장폐지 위험/재무위기 관리종목 데이터가 없습니다.")
+
+st.markdown("---")
+
+# ==============================================================================
+# 5. [Module 4] 지수/ETF 리밸런싱 수급 차익거래 스캐너
+# ==============================================================================
+st.subheader("📊 지수/ETF 리밸런싱 이벤트 & 외국인·기관 수급 스캐너")
+st.caption("KOSPI200, KOSDAQ150, MSCI 정기변경 시 패시브 자금 수급 쏠림 현상 선제 포착")
+
+df_rebalance = fetch_index_rebalance_data()
+
+if not df_rebalance.empty:
+    r1, r2, r3 = st.columns(3)
+    r1.metric("편입/비중확대 예상 종목", f"{len(df_rebalance[df_rebalance['구분'].str.contains('편입|확대')])} 건")
+    r2.metric("최대 수급 유입 예상액", f"{df_rebalance['예상 패시브 유입액(억원)'].max():,} 억원")
+    r3.metric("최대 ADTV 유입 배수", f"{df_rebalance['ADTV 대비 비율(배)'].max():.1f} 배")
+
+    st.dataframe(
+        df_rebalance,
+        column_config={
+            "시가총액(억원)": st.column_config.NumberColumn("시가총액", format="%d 억원"),
+            "예상 패시브 유입액(억원)": st.column_config.NumberColumn("예상 자금 유출입", format="%d 억원"),
+            "ADTV 대비 비율(배)": st.column_config.NumberColumn("ADTV 대비 비율", format="%.1f 배"),
+        },
+        use_container_width=True,
+        hide_index=True
+    )
+else:
+    st.info("현재 수집된 지수 리밸런싱 예상 종목 데이터가 없습니다.")
