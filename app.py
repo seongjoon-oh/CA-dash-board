@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="차익/비차익 모니터링 | 한국투자증권",
+    page_title="차익/비차익 모니터링",
     page_icon="📈",
     layout="wide"
 )
@@ -178,21 +178,24 @@ def fetch_index_rebalance_data():
     return pd.DataFrame(rebalance_list)
 
 # ==============================================================================
-# Header UI (한국투자증권 truefriend 공식 로고 반영)
+# Header UI (한국투자증권 로고 & 헤더 스타일링)
 # ==============================================================================
-header_col1, header_col2 = st.columns([2.5, 5])
+# 외부 이미지 호환을 고려해 HTML img 및 위키미디어 공식 원본 로고 적용
+logo_html = """
+<div style="display: flex; align-items: center; gap: 20px; padding-bottom: 10px;">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Korea_Investment_%26_Securities_Logo_KR.png" 
+         alt="한국투자증권 로고" 
+         style="height: 48px; object-fit: contain; background-color: white; padding: 4px 10px; border-radius: 6px;">
+    <div>
+        <h1 style="margin: 0; padding: 0; font-size: 2.2rem; font-weight: 700;">차익/비차익 모니터링</h1>
+        <p style="margin: 3px 0 0 0; color: #888888; font-size: 0.9rem;">
+            영업일 기준: <b>{}</b> | 갱신시간: {}
+        </p>
+    </div>
+</div>
+""".format(get_recent_trade_date(), datetime.now().strftime('%H:%M:%S'))
 
-with header_col1:
-    # 한국투자증권 truefriend 공식 로고 (투명 배경 PNG)
-    st.image(
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Korea_Investment_%26_Securities_Logo_KR.png/1024px-Korea_Investment_%26_Securities_Logo_KR.png", 
-        use_container_width=True
-    )
-
-with header_col2:
-    st.markdown("<h1 style='margin-bottom:0px; padding-top:5px; font-size: 2.2rem;'>차익/비차익 모니터링</h1>", unsafe_allow_html=True)
-    st.caption(f"한국투자증권 Delta 1 / Arbitrage Trading Desk | 영업일 기준: {get_recent_trade_date()} | 갱신: {datetime.now().strftime('%H:%M:%S')}")
-
+st.markdown(logo_html, unsafe_allow_html=True)
 st.markdown("---")
 
 # 메인 탭 4개
