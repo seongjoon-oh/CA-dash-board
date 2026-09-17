@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="차익/비차익 모니터링 시스템 | 한국투자증권",
+    page_title="차익/비차익 모니터링 | 한국투자증권",
     page_icon="📈",
     layout="wide"
 )
@@ -178,19 +178,20 @@ def fetch_index_rebalance_data():
     return pd.DataFrame(rebalance_list)
 
 # ==============================================================================
-# Header UI (한국투자증권 브랜드 적용)
+# Header UI (한국투자증권 truefriend 공식 로고 반영)
 # ==============================================================================
-logo_url = "https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f4c8.png" 
-
-header_col1, header_col2 = st.columns([1, 6])
+header_col1, header_col2 = st.columns([2.5, 5])
 
 with header_col1:
-    # 한국투자증권 로고 이미지 (공식 웹 로고)
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Korea_Investment_%26_Securities_Logo_KR.png/320px-Korea_Investment_%26_Securities_Logo_KR.png", width=170)
+    # 한국투자증권 truefriend 공식 로고 (투명 배경 PNG)
+    st.image(
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Korea_Investment_%26_Securities_Logo_KR.png/1024px-Korea_Investment_%26_Securities_Logo_KR.png", 
+        use_container_width=True
+    )
 
 with header_col2:
-    st.markdown("<h1 style='margin-bottom:0px; padding-top:0px;'>Delta 1 모니터링 시스템</h1>", unsafe_allow_html=True)
-    st.caption(f"한국투자증권 Delta 1 트레이딩 / Arbitrage Desk | 영업일 기준: {get_recent_trade_date()} | 갱신: {datetime.now().strftime('%H:%M:%S')}")
+    st.markdown("<h1 style='margin-bottom:0px; padding-top:5px; font-size: 2.2rem;'>차익/비차익 모니터링</h1>", unsafe_allow_html=True)
+    st.caption(f"한국투자증권 Delta 1 / Arbitrage Trading Desk | 영업일 기준: {get_recent_trade_date()} | 갱신: {datetime.now().strftime('%H:%M:%S')}")
 
 st.markdown("---")
 
