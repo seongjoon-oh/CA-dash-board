@@ -18,7 +18,7 @@ import plotly.graph_objects as go
 import requests
 from bs4 import BeautifulSoup
 from pykrx import stock
-from datetime import datetime
+from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Arbitrage CA Dashboard", layout="wide")
 
@@ -98,34 +98,39 @@ def get_realtime_stock_basis():
 def fetch_realtime_dart_ca_events(api_key):
     """DART API를 통해 최근 7일간의 Corporate Action 공시 수집 및 분류"""
     if not api_key:
+        st.error("🔑 DART API Key가 설정되지 않았습니다. Streamlit Secrets 설정을 확인해 주세요.")
         return pd.DataFrame()
 
-    # 최근 7일간의 공시를 조회하도록 설정
+    # 최근 7일간 검색 설정
     end_date = datetime.now().strftime("%Y%m%d")
-    beg_date = (datetime.now() - pd.Timedelta(days=7)).strftime("%Y%m%d")
+    beg_date = (datetime.now() - timedelta(days=7)).strftime("%Y%m%d")
     
-    # 올바른 DART API 파라미터 (bgn_de, end_de)
-    url = f"https://opendart.fss.or.kr/api/list.json?crtfc_key={api_key}&bgn_de={beg_date}&end_de={end_date}&page_count=100"
+    # page_count=1000으로 확장하여 누락 없이 수집
+    url = f"https://opendart.fss.or.kr/api/list.json?crtfc_key={api_key}&bgn_de={beg_date}&end_de={end_date}&page_count=1000"
 
     try:
-        res = requests.get(url, timeout=5)
+        res = requests.get(url, timeout=10)
         data = res.json()
         
-        # API 오류가 발생하면 화면에 메시지 출력 (디버깅용)
-        if data.get("status") != "000":
-            st.caption(f"⚠️ DART API 응답 상태: {data.get('message', '알 수 없는 오류')}")
+        status_code = data.get("status")
+        if status_code != "000":
+            st.warning(f"⚠️ DART 응답 알림: {data.get('message', '공시 수집 불가')} (코드: {status_code})")
             return pd.DataFrame()
 
         raw_list = data.get("list", [])
+        
+        # 5대 CA 포착 키워드 맵핑
         keyword_map = {
             "주식매수청구": "M&A / 주식매수청구",
             "합병": "M&A / 주식매수청구",
             "분할": "M&A / 주식매수청구",
             "전환가액": "메자닌 (CB/BW)",
             "신주인수권": "메자닌 (CB/BW)",
+            "신주발행": "메자닌 (CB/BW)",
             "배당": "배당 관련 공시",
             "자기주식": "자사주 / 유상증자",
             "유상증자": "자사주 / 유상증자",
+            "무상증자": "자사주 / 유상증자",
             "최대주주": "지배구조 / 기타"
         }
 
@@ -146,7 +151,7 @@ def fetch_realtime_dart_ca_events(api_key):
 
         return pd.DataFrame(filtered_events)
     except Exception as e:
-        st.caption(f"⚠️ DART 수집 예외 발생: {e}")
+        st.error(f"⚠️ DART 수집 네트워크 오류: {e}")
         return pd.DataFrame()
 
 # ==============================================================================
@@ -202,7 +207,7 @@ st.markdown("---")
 # ==============================================================================
 # 3. [Module 2] DART API 실시간 Corporate Action 스캐너
 # ==============================================================================
-st.subheader("🚨 DART 실시간 Corporate Action (CA) 모니터링")
+st.subheader("🚨 DART 실시간 Corporate Action (CA) 모니터링 (최근 7일)")
 
 df_dart = fetch_realtime_dart_ca_events(DART_API_KEY)
 
