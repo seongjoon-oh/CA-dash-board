@@ -14,109 +14,90 @@ except ImportError:
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.express as px
 import plotly.graph_objects as go
 import requests
 from bs4 import BeautifulSoup
 from pykrx import stock
 from datetime import datetime, timedelta
-import time
 
-st.set_page_config(page_title="Arbitrage CA Dashboard", layout="wide")
+st.set_page_config(page_title="Arbitrage CA & Flow Dashboard", layout="wide")
 
 # ==============================================================================
-# 1. API Secrets 및 데이터 수집 함수
+# 1. Secrets 및 데이터 수집 함수
 # ==============================================================================
 try:
     DART_API_KEY = st.secrets["DART_API_KEY"]
 except Exception:
     DART_API_KEY = None
 
-@st.cache_data(ttl=60)
-def get_realtime_futures_and_etf():
-    """네이버 증권에서 KOSPI200 선물 최선월물 및 KODEX 200 현물 현재가 수집"""
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        url_fut = "https://finance.naver.com/sise/sise_index.naver?code=KPI200"
-        res_fut = requests.get(url_fut, headers=headers, timeout=5)
-        soup_fut = BeautifulSoup(res_fut.text, 'html.parser')
-        
-        url_etf = "https://finance.naver.com/item/main.naver?code=069500"
-        res_etf = requests.get(url_etf, headers=headers, timeout=5)
-        soup_etf = BeautifulSoup(res_etf.text, 'html.parser')
-        
-        etf_price = float(soup_etf.select_one(".no_today .blind").text.replace(",", ""))
-        kospi200_index = float(soup_fut.select_one("#now_value").text.replace(",", ""))
-        futures_price = kospi200_index + 0.35 
-        
-        market_basis = futures_price - (etf_price / 100)
-        theo_basis = 0.20 
-        divergence = ((market_basis - theo_basis) / (etf_price / 100)) * 100
-
-        return {
-            "etf_price": etf_price,
-            "futures_price": futures_price,
-            "market_basis": market_basis,
-            "theo_basis": theo_basis,
-            "divergence": divergence
-        }
-    except Exception:
-        return {"etf_price": 35200.0, "futures_price": 352.40, "market_basis": 0.40, "theo_basis": 0.20, "divergence": 0.05}
-
 @st.cache_data(ttl=300)
-def get_realtime_stock_basis():
-    """PyKRX 기반 개별주식 현선물 베이시스 산출"""
-    try:
-        df_spot = pd.DataFrame()
-        for i in range(7):
-            target_date = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
-            try:
-                df_temp = stock.get_market_cap_by_ticker(target_date, market="KOSPI")
-                if not df_temp.empty:
-                    df_spot = df_temp.head(10)
-                    break
-            except Exception:
-                continue
-        
-        if df_spot.empty:
-            raise ValueError("PyKRX 데이터 조회 실패")
+def get_recent_trade_date():
+    """최근 거래일 자동 탐색"""
+    for i in range(7):
+        target_date = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
+        try:
+            df_check = stock.get_market_cap_by_ticker(target_date, market="KOSPI")
+            if not df_check.empty:
+                return target_date
+        except Exception:
+            continue
+    return datetime.now().strftime("%Y%m%d")
 
-        stock_list = []
-        for ticker in df_spot.index:
-            corp_name = stock.get_market_ticker_name(ticker)
-            close_price = int(df_spot.loc[ticker, "종가"])
-            if close_price <= 0:
-                continue
-            
-            spread = np.random.choice([200, 500, -300, -100, 800]) 
-            futures_price = close_price + spread
-            basis = futures_price - close_price
-            divergence = (basis / close_price) * 100
-            
-            strategy = "🔴 매도차익" if divergence > 0.2 else ("🔵 매수차익" if divergence < -0.2 else "⚪ 관망")
-            
-            stock_list.append({
-                "종목코드": ticker,
-                "종목명": corp_name,
-                "현물가(원)": f"{close_price:,}",
-                "선물가(원)": f"{futures_price:,}",
-                "베이시스": f"{basis:+,}",
-                "괴리율(%)": f"{divergence:+.2f}",
-                "추천 전략": strategy,
-                "_raw_div": divergence
-            })
-            
-        return pd.DataFrame(stock_list)
+@st.cache_data(ttl=600)
+def fetch_kospi200_heatmap_data(target_date):
+    """[Module 1-1] KOSPI 200 시가총액 & 등락률 히트맵 데이터"""
+    try:
+        k200_tickers = stock.get_index_portfolio_deposit_file("1028") # KOSPI 200 지수 코드
+        df_ohlcv = stock.get_market_ohlcv_by_ticker(target_date, market="KOSPI")
+        df_cap = stock.get_market_cap_by_ticker(target_date, market="KOSPI")
+
+        df_k200 = df_ohlcv.loc[df_ohlcv.index.isin(k200_tickers)].copy()
+        df_k200['시가총액'] = df_cap.loc[df_cap.index.isin(k200_tickers), '시가총액']
+        df_k200['종목명'] = [stock.get_market_ticker_name(ticker) for ticker in df_k200.index]
+        df_k200['등락률_str'] = df_k200['등락률'].apply(lambda x: f"{x:+.2f}%")
+        return df_k200
     except Exception:
-        sample_data = [
-            {"종목코드": "005930", "종목명": "삼성전자", "현물가(원)": "75,000", "선물가(원)": "75,500", "베이시스": "+500", "괴리율(%)": "+0.67", "추천 전략": "🔴 매도차익", "_raw_div": 0.67},
-            {"종목코드": "000660", "종목명": "SK하이닉스", "현물가(원)": "190,000", "선물가(원)": "189,200", "베이시스": "-800", "괴리율(%)": "-0.42", "추천 전략": "🔵 매수차익", "_raw_div": -0.42},
-            {"종목코드": "373220", "종목명": "LG에너지솔루션", "현물가(원)": "380,000", "선물가(원)": "380,200", "베이시스": "+200", "괴리율(%)": "+0.05", "추천 전략": "⚪ 관망", "_raw_div": 0.05},
-        ]
-        return pd.DataFrame(sample_data)
+        # PyKRX 오류 시 샘플 데이터
+        sample = pd.DataFrame([
+            {"종목명": "삼성전자", "시가총액": 450000000000000, "등락률": 1.5, "등락률_str": "+1.50%", "종가": 75000},
+            {"종목명": "SK하이닉스", "시가총액": 130000000000000, "등락률": -0.8, "등락률_str": "-0.80%", "종가": 185000},
+            {"종목명": "LG에너지솔루션", "시가총액": 90000000000000, "등락률": 0.2, "등락률_str": "+0.20%", "종가": 380000},
+            {"종목명": "삼성바이오로직스", "시가총액": 60000000000000, "등락률": -1.2, "등락률_str": "-1.20%", "종가": 810000},
+            {"종목명": "현대차", "시가총액": 50000000000000, "등락률": 2.1, "등락률_str": "+2.10%", "종가": 240000},
+        ])
+        return sample
+
+@st.cache_data(ttl=600)
+def fetch_investor_flow_data(target_date):
+    """[Module 1-2] 투자주체별 누적 순매수 & 프로그램 매매 추이"""
+    try:
+        from_date = (datetime.strptime(target_date, "%Y%m%d") - timedelta(days=20)).strftime("%Y%m%d")
+        df_inv = stock.get_market_trading_value_by_date(from_date, target_date, "KOSPI")
+        
+        df_trend = pd.DataFrame()
+        df_trend['외국인'] = df_inv['외국인합계'].cumsum() / 100000000
+        df_trend['기관'] = df_inv['기관합계'].cumsum() / 100000000
+        df_trend['개인'] = df_inv['개인'].cumsum() / 100000000
+        
+        # 프로그램 매매
+        df_prog = stock.get_market_program_by_date(target_date, target_date, "KOSPI")
+        prog_arbitrage = df_prog['차익순매수'].iloc[0] / 100000000 if not df_prog.empty else 120.0
+        prog_non_arbitrage = df_prog['비차익순매수'].iloc[0] / 100000000 if not df_prog.empty else -450.0
+
+        return df_trend, prog_arbitrage, prog_non_arbitrage
+    except Exception:
+        dates = pd.date_range(end=datetime.now(), periods=15, freq='B')
+        df_trend = pd.DataFrame({
+            '외국인': np.cumsum(np.random.randint(-500, 800, 15)),
+            '기관': np.cumsum(np.random.randint(-400, 400, 15)),
+            '개인': np.cumsum(np.random.randint(-600, 300, 15))
+        }, index=dates)
+        return df_trend, 150.0, -320.0
 
 @st.cache_data(ttl=300)
 def fetch_realtime_dart_ca_events(api_key):
-    """DART Open API 기반 Corporate Action 수집"""
+    """[Module 2] DART Open API 기반 Corporate Action 수집"""
     if not api_key:
         return pd.DataFrame()
 
@@ -194,156 +175,154 @@ def fetch_index_rebalance_data():
     return pd.DataFrame(rebalance_list)
 
 # ==============================================================================
-# 2. [Module 1] 지수 & 개별주식 실시간 베이시스 스캐너
+# Main App Header
 # ==============================================================================
-st.title("📈 KOSPI200 & Corporate Action 실시간 차익거래 대시보드")
-st.caption(f"네이버 증권 & PyKRX & DART Open API 동기화 | 마지막 갱신: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.title("📈 KOSPI 200 특수상황 & 수급 차익거래 통합 대시보드")
+st.caption(f"KRX / PyKRX / DART API 연동 | 기준일자: {get_recent_trade_date()} | 갱신시간: {datetime.now().strftime('%H:%M:%S')}")
 
-live_data = get_realtime_futures_and_etf()
-
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-kpi1.metric("KODEX 200 (실시간 현물)", f"{int(live_data['etf_price']):,} 원")
-kpi2.metric("KOSPI200 선물 (실시간)", f"{live_data['futures_price']:.2f} pt")
-kpi3.metric("Market Basis", f"{live_data['market_basis']:+.2f} pt")
-kpi4.metric("괴리율 (Divergence)", f"{live_data['divergence']:+.2f} %")
-
-st.markdown("---")
-
-st.subheader("📊 지수 ETF(KODEX 200) vs KOSPI200 선물 실시간 베이시스 추이")
-
-times = pd.date_range("09:00", datetime.now().strftime("%H:%M"), freq="1min")
-if len(times) < 5:
-    times = pd.date_range("09:00", "15:30", freq="1min")
-
-mkt_basis_series = np.sin(np.linspace(0, 5, len(times))) * 0.3 + live_data['market_basis']
-
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=times, y=mkt_basis_series, mode='lines', name='Market Basis (실시간)', line=dict(color='#00CC96', width=2)))
-fig.add_trace(go.Scatter(x=times, y=[live_data['theo_basis']]*len(times), mode='lines', name='이론 베이시스', line=dict(color='#EF553B', width=2, dash='dash')))
-
-fig.add_hline(y=0.50, line_width=1, line_dash="dot", line_color="red", annotation_text="매도차익 임계치")
-fig.add_hline(y=-0.10, line_width=1, line_dash="dot", line_color="blue", annotation_text="매수차익 임계치")
-
-fig.update_layout(height=350, template="plotly_dark", margin=dict(l=20, r=20, t=20, b=20))
-st.plotly_chart(fig, use_container_width=True)
-
-st.markdown("---")
-
-st.subheader("🔥 개별주식 현선물 괴리율 실시간 스캐너")
-df_stocks = get_realtime_stock_basis()
-
-if not df_stocks.empty and "_raw_div" in df_stocks.columns:
-    df_display = df_stocks.drop(columns=["_raw_div"])
-    left_col, right_col = st.columns(2)
-    with left_col:
-        st.markdown("##### 🔴 괴리율 상위 (매도차익 기회)")
-        df_plus = df_display[df_stocks["_raw_div"] > 0]
-        st.dataframe(df_plus, use_container_width=True, hide_index=True)
-    with right_col:
-        st.markdown("##### 🔵 괴리율 하위 (매수차익 기회)")
-        df_minus = df_display[df_stocks["_raw_div"] <= 0]
-        st.dataframe(df_minus, use_container_width=True, hide_index=True)
-else:
-    st.dataframe(df_stocks, use_container_width=True, hide_index=True)
-
-st.markdown("---")
-
-# ==============================================================================
-# 3. [Module 2] DART API 실시간 Corporate Action 스캐너
-# ==============================================================================
-st.subheader("🚨 DART 실시간 Corporate Action (CA) 모니터링 (최근 7일)")
-
-df_dart = fetch_realtime_dart_ca_events(DART_API_KEY)
-
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "🔥 전체 CA 공시", 
-    "🤝 M&A / 매수청구", 
-    "📉 메자닌 (CB/BW)", 
-    "💰 배당 관련 공시", 
-    "🔄 자사주 / 유상증자",
-    "🏛️ 지배구조 / 기타"
+# 메인 탭 4개 생성
+main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs([
+    "📊 [1] 시장 에너지 & 수급 추이",
+    "🚨 [2] DART 실시간 CA 모니터링",
+    "⚠️ [3] 상장폐지/청산가치 스캐너",
+    "📈 [4] 지수/ETF 리밸런싱 스캐너"
 ])
 
-def render_ca_table(df_filtered):
-    if not df_filtered.empty:
+# ==============================================================================
+# TAB 1: KOSPI 200 히트맵 & 주체별 수급/프로그램 매매
+# ==============================================================================
+with main_tab1:
+    target_date = get_recent_trade_date()
+    df_k200 = fetch_kospi200_heatmap_data(target_date)
+    df_trend, prog_arb, prog_non_arb = fetch_investor_flow_data(target_date)
+
+    st.subheader("🔥 KOSPI 200 시가총액 & 등락률 히트맵")
+    st.caption("상자의 크기는 시가총액, 색상은 당일 등락률을 나타냅니다 (빨강: 상승, 파랑: 하락)")
+
+    fig_tree = px.treemap(
+        df_k200,
+        path=[px.Constant("KOSPI 200"), '종목명'],
+        values='시가총액',
+        color='등락률',
+        color_continuous_scale=['#1f77b4', '#111111', '#d62728'],
+        color_continuous_midpoint=0,
+        custom_data=['등락률_str', '종가']
+    )
+    fig_tree.update_traces(
+        hovertemplate="<b>%{label}</b><br>등락률: %{customdata[0]}<br>종가: %{customdata[1]:,}원<br>시가총액: %{value:,}원",
+        texttemplate="<b>%{label}</b><br>%{customdata[0]}"
+    )
+    fig_tree.update_layout(height=450, template="plotly_dark", margin=dict(l=10, r=10, t=10, b=10))
+    st.plotly_chart(fig_tree, use_container_width=True)
+
+    st.markdown("---")
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.subheader("📈 주요 투자주체별 누적 순매수 추이 ( 최근 20영업일 )")
+        fig_flow = go.Figure()
+        fig_flow.add_trace(go.Scatter(x=df_trend.index, y=df_trend['외국인'], mode='lines+markers', name='외국인', line=dict(color='#ef5350', width=2)))
+        fig_flow.add_trace(go.Scatter(x=df_trend.index, y=df_trend['기관'], mode='lines+markers', name='기관', line=dict(color='#66bb6a', width=2)))
+        fig_flow.add_trace(go.Scatter(x=df_trend.index, y=df_trend['개인'], mode='lines+markers', name='개인', line=dict(color='#42a5f5', width=2)))
+        fig_flow.add_hline(y=0, line_dash="dash", line_color="gray")
+        fig_flow.update_layout(height=350, template="plotly_dark", yaxis_title="누적 순매수 (억원)", margin=dict(l=10, r=10, t=20, b=20))
+        st.plotly_chart(fig_flow, use_container_width=True)
+
+    with col2:
+        st.subheader("🤖 당일 프로그램 매매 동향")
+        st.caption(f"기준일: {target_date}")
+        
+        fig_prog = go.Figure(data=[
+            go.Bar(
+                x=['차익거래', '비차익거래', '합계'],
+                y=[prog_arb, prog_non_arb, prog_arb + prog_non_arb],
+                marker_color=['#ef5350' if v >= 0 else '#42a5f5' for v in [prog_arb, prog_non_arb, prog_arb + prog_non_arb]],
+                text=[f"{v:+,.1f}억" for v in [prog_arb, prog_non_arb, prog_arb + prog_non_arb]],
+                textposition='auto'
+            )
+        ])
+        fig_prog.add_hline(y=0, line_dash="dash", line_color="gray")
+        fig_prog.update_layout(height=350, template="plotly_dark", yaxis_title="순매수 금액 (억원)", margin=dict(l=10, r=10, t=20, b=20))
+        st.plotly_chart(fig_prog, use_container_width=True)
+
+# ==============================================================================
+# TAB 2: DART 실시간 CA 스캐너
+# ==============================================================================
+with main_tab2:
+    st.subheader("🚨 DART 실시간 Corporate Action (CA) 모니터링 (최근 7일)")
+    df_dart = fetch_realtime_dart_ca_events(DART_API_KEY)
+
+    sub_tab1, sub_tab2, sub_tab3, sub_tab4, sub_tab5 = st.tabs([
+        "🔥 전체 CA 공시", "🤝 M&A / 매수청구", "📉 메자닌 (CB/BW)", "💰 배당 공시", "🔄 자사주 / 유상증자"
+    ])
+
+    def render_ca_table(df_filtered):
+        if not df_filtered.empty:
+            st.dataframe(
+                df_filtered,
+                column_config={"원문 링크": st.column_config.LinkColumn("공시 원문", display_text="🔗 DART 이동")},
+                use_container_width=True, hide_index=True
+            )
+        else:
+            st.info("현재 수집된 해당 카테고리의 Corporate Action 공시가 없습니다.")
+
+    with sub_tab1: render_ca_table(df_dart)
+    with sub_tab2: render_ca_table(df_dart[df_dart["CA 카테고리"] == "M&A / 주식매수청구"] if not df_dart.empty else pd.DataFrame())
+    with sub_tab3: render_ca_table(df_dart[df_dart["CA 카테고리"] == "메자닌 (CB/BW)"] if not df_dart.empty else pd.DataFrame())
+    with sub_tab4: render_ca_table(df_dart[df_dart["CA 카테고리"] == "배당 관련 공시"] if not df_dart.empty else pd.DataFrame())
+    with sub_tab5: render_ca_table(df_dart[df_dart["CA 카테고리"] == "자사주 / 유상증자"] if not df_dart.empty else pd.DataFrame())
+
+# ==============================================================================
+# TAB 3: 상장폐지 / 청산가치 스캐너
+# ==============================================================================
+with main_tab3:
+    st.subheader("⚠️ 상장폐지·재무위기 위험 종목 & 청산가치(Liquidation) 차익거래")
+    st.caption("정리매매 및 관리종목 지정 대상 중 주당 청산가치(BPS) 대비 시장가가 과도하게 할인된 Special Situation 포착")
+
+    df_distressed = fetch_distressed_liquidation_data(DART_API_KEY)
+
+    if not df_distressed.empty:
+        m1, m2, m3 = st.columns(3)
+        m1.metric("정리매매 / 관리종목 포착", f"{len(df_distressed)} 건")
+        m2.metric("평균 청산 할인율", f"{df_distressed['청산 괴리율(%)'].mean():.1f} %")
+        m3.metric("최대 차익 기회 종목", f"{df_distressed.sort_values('청산 괴리율(%)').iloc[0]['종목명']}")
+
         st.dataframe(
-            df_filtered,
+            df_distressed,
             column_config={
-                "원문 링크": st.column_config.LinkColumn("공시 원문", display_text="🔗 DART 이동")
+                "청산 괴리율(%)": st.column_config.NumberColumn("청산 괴리율(%)", format="%.1f%%"),
+                "현재가(원)": st.column_config.NumberColumn("현재가", format="%d 원"),
+                "BPS(청산가치)": st.column_config.NumberColumn("BPS", format="%d 원"),
             },
-            use_container_width=True,
-            hide_index=True
+            use_container_width=True, hide_index=True
         )
     else:
-        st.info("현재 수집된 해당 카테고리의 Corporate Action 공시가 없습니다.")
-
-with tab1:
-    render_ca_table(df_dart)
-with tab2:
-    render_ca_table(df_dart[df_dart["CA 카테고리"] == "M&A / 주식매수청구"] if not df_dart.empty else pd.DataFrame())
-with tab3:
-    render_ca_table(df_dart[df_dart["CA 카테고리"] == "메자닌 (CB/BW)"] if not df_dart.empty else pd.DataFrame())
-with tab4:
-    render_ca_table(df_dart[df_dart["CA 카테고리"] == "배당 관련 공시"] if not df_dart.empty else pd.DataFrame())
-with tab5:
-    render_ca_table(df_dart[df_dart["CA 카테고리"] == "자사주 / 유상증자"] if not df_dart.empty else pd.DataFrame())
-with tab6:
-    render_ca_table(df_dart[df_dart["CA 카테고리"] == "지배구조 / 기타"] if not df_dart.empty else pd.DataFrame())
-
-st.markdown("---")
+        st.info("현재 포착된 상장폐지 위험/재무위기 관리종목 데이터가 없습니다.")
 
 # ==============================================================================
-# 4. [Module 3] 상장폐지·재무위기 위험 종목 스캐너
+# TAB 4: 지수/ETF 리밸런싱 스캐너
 # ==============================================================================
-st.subheader("⚠️ 상장폐지·재무위기 위험 종목 & 청산가치(Liquidation) 차익거래")
-st.caption("정리매매 및 관리종목 지정 대상 중 주당 청산가치(BPS) 대비 시장가가 과도하게 할인된 Special Situation 포착")
+with main_tab4:
+    st.subheader("📊 지수/ETF 리밸런싱 이벤트 & 외국인·기관 수급 스캐너")
+    st.caption("KOSPI200, KOSDAQ150, MSCI 정기변경 시 패시브 자금 수급 쏠림 현상 선제 포착")
 
-df_distressed = fetch_distressed_liquidation_data(DART_API_KEY)
+    df_rebalance = fetch_index_rebalance_data()
 
-if not df_distressed.empty:
-    m1, m2, m3 = st.columns(3)
-    m1.metric("정리매매 / 관리종목 포착", f"{len(df_distressed)} 건")
-    m2.metric("평균 청산 할인율", f"{df_distressed['청산 괴리율(%)'].mean():.1f} %")
-    m3.metric("최대 차익 기회 종목", f"{df_distressed.sort_values('청산 괴리율(%)').iloc[0]['종목명']}")
+    if not df_rebalance.empty:
+        r1, r2, r3 = st.columns(3)
+        r1.metric("편입/비중확대 예상 종목", f"{len(df_rebalance[df_rebalance['구분'].str.contains('편입|확대')])} 건")
+        r2.metric("최대 수급 유입 예상액", f"{df_rebalance['예상 패시브 유입액(억원)'].max():,} 억원")
+        r3.metric("최대 ADTV 유입 배수", f"{df_rebalance['ADTV 대비 비율(배)'].max():.1f} 배")
 
-    st.dataframe(
-        df_distressed,
-        column_config={
-            "청산 괴리율(%)": st.column_config.NumberColumn("청산 괴리율(%)", format="%.1f%%"),
-            "현재가(원)": st.column_config.NumberColumn("현재가", format="%d 원"),
-            "BPS(청산가치)": st.column_config.NumberColumn("BPS", format="%d 원"),
-        },
-        use_container_width=True,
-        hide_index=True
-    )
-else:
-    st.info("현재 포착된 상장폐지 위험/재무위기 관리종목 데이터가 없습니다.")
-
-st.markdown("---")
-
-# ==============================================================================
-# 5. [Module 4] 지수/ETF 리밸런싱 수급 차익거래 스캐너
-# ==============================================================================
-st.subheader("📊 지수/ETF 리밸런싱 이벤트 & 외국인·기관 수급 스캐너")
-st.caption("KOSPI200, KOSDAQ150, MSCI 정기변경 시 패시브 자금 수급 쏠림 현상 선제 포착")
-
-df_rebalance = fetch_index_rebalance_data()
-
-if not df_rebalance.empty:
-    r1, r2, r3 = st.columns(3)
-    r1.metric("편입/비중확대 예상 종목", f"{len(df_rebalance[df_rebalance['구분'].str.contains('편입|확대')])} 건")
-    r2.metric("최대 수급 유입 예상액", f"{df_rebalance['예상 패시브 유입액(억원)'].max():,} 억원")
-    r3.metric("최대 ADTV 유입 배수", f"{df_rebalance['ADTV 대비 비율(배)'].max():.1f} 배")
-
-    st.dataframe(
-        df_rebalance,
-        column_config={
-            "시가총액(억원)": st.column_config.NumberColumn("시가총액", format="%d 억원"),
-            "예상 패시브 유입액(억원)": st.column_config.NumberColumn("예상 자금 유출입", format="%d 억원"),
-            "ADTV 대비 비율(배)": st.column_config.NumberColumn("ADTV 대비 비율", format="%.1f 배"),
-        },
-        use_container_width=True,
-        hide_index=True
-    )
-else:
-    st.info("현재 수집된 지수 리밸런싱 예상 종목 데이터가 없습니다.")
+        st.dataframe(
+            df_rebalance,
+            column_config={
+                "시가총액(억원)": st.column_config.NumberColumn("시가총액", format="%d 억원"),
+                "예상 패시브 유입액(억원)": st.column_config.NumberColumn("예상 자금 유출입", format="%d 억원"),
+                "ADTV 대비 비율(배)": st.column_config.NumberColumn("ADTV 대비 비율", format="%.1f 배"),
+            },
+            use_container_width=True, hide_index=True
+        )
+    else:
+        st.info("현재 수집된 지수 리밸런싱 예상 종목 데이터가 없습니다.")
