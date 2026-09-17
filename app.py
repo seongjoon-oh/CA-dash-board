@@ -96,17 +96,24 @@ def get_realtime_stock_basis():
 
 @st.cache_data(ttl=180)
 def fetch_realtime_dart_ca_events(api_key):
-    """DART API를 통해 차익거래 5대 Corporate Action 공시 수집 및 분류"""
+    """DART API를 통해 최근 7일간의 Corporate Action 공시 수집 및 분류"""
     if not api_key:
         return pd.DataFrame()
 
-    today = datetime.now().strftime("%Y%m%d")
-    url = f"https://opendart.fss.or.kr/api/list.json?crtfc_key={api_key}&bde_beg={today}&page_count=100"
+    # 최근 7일간의 공시를 조회하도록 설정
+    end_date = datetime.now().strftime("%Y%m%d")
+    beg_date = (datetime.now() - pd.Timedelta(days=7)).strftime("%Y%m%d")
+    
+    # 올바른 DART API 파라미터 (bgn_de, end_de)
+    url = f"https://opendart.fss.or.kr/api/list.json?crtfc_key={api_key}&bgn_de={beg_date}&end_de={end_date}&page_count=100"
 
     try:
         res = requests.get(url, timeout=5)
         data = res.json()
+        
+        # API 오류가 발생하면 화면에 메시지 출력 (디버깅용)
         if data.get("status") != "000":
+            st.caption(f"⚠️ DART API 응답 상태: {data.get('message', '알 수 없는 오류')}")
             return pd.DataFrame()
 
         raw_list = data.get("list", [])
@@ -138,7 +145,8 @@ def fetch_realtime_dart_ca_events(api_key):
                 })
 
         return pd.DataFrame(filtered_events)
-    except Exception:
+    except Exception as e:
+        st.caption(f"⚠️ DART 수집 예외 발생: {e}")
         return pd.DataFrame()
 
 # ==============================================================================
