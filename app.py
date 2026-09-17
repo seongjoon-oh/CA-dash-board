@@ -94,7 +94,75 @@ def get_realtime_stock_basis():
     except Exception:
         return pd.DataFrame()
 
-@st.cache_data(ttl=180)
+@st.cache_data(ttl=300) # 5분 단위 캐싱으로 서버 부담 경감
+def fetch_realtime_dart_ca_events(api_key):
+    """DART API를 통해 최근 7일간의 Corporate Action 공시 수집 및 분류 (네트워크 타임아웃 보완)"""
+    if not api_key:
+        st.error("🔑 DART API Key가 설정되지 않았습니다.")
+        return pd.DataFrame()
+
+    end_date = datetime.now().strftime("%Y%m%d")
+    beg_date = (datetime.now() - timedelta(days=7)).strftime("%Y%m%d")
+    
+    # page_count를 100으로 줄여 DART 서버 타임아웃 방지
+    url = f"https://opendart.fss.or.kr/api/list.json?crtfc_key={api_key}&bgn_de={beg_date}&end_de={end_date}&page_count=100"
+
+    # 해외 서버 요청 시 헤더 설정
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+
+    # 최대 2회 재시도 로직
+    for attempt in range(2):
+        try:
+            res = requests.get(url, headers=headers, timeout=15) # 타임아웃 15초로 연장
+            data = res.json()
+            
+            status_code = data.get("status")
+            if status_code != "000":
+                st.warning(f"⚠️ DART 응답 알림: {data.get('message', '공시 수집 불가')} (코드: {status_code})")
+                return pd.DataFrame()
+
+            raw_list = data.get("list", [])
+            
+            keyword_map = {
+                "주식매수청구": "M&A / 주식매수청구",
+                "합병": "M&A / 주식매수청구",
+                "분할": "M&A / 주식매수청구",
+                "전환가액": "메자닌 (CB/BW)",
+                "신주인수권": "메자닌 (CB/BW)",
+                "신주발행": "메자닌 (CB/BW)",
+                "배당": "배당 관련 공시",
+                "자기주식": "자사주 / 유상증자",
+                "유상증자": "자사주 / 유상증자",
+                "무상증자": "자사주 / 유상증자",
+                "최대주주": "지배구조 / 기타"
+            }
+
+            filtered_events = []
+            for item in raw_list:
+                report_nm = item.get("report_nm", "")
+                detected_type = next((category for kw, category in keyword_map.items() if kw in report_nm), None)
+                
+                if detected_type:
+                    rcp_no = item.get("rcp_no")
+                    filtered_events.append({
+                        "종목명": item.get("corp_name"),
+                        "CA 카테고리": detected_type,
+                        "공시제목": report_nm,
+                        "접수일자": item.get("rcept_dt"),
+                        "원문 링크": f"https://dart.fss.or.kr/dsaf001/main.do?rcp_no={rcp_no}"
+                    })
+
+            return pd.DataFrame(filtered_events)
+
+        except requests.exceptions.RequestException as e:
+            if attempt == 1:
+                st.warning("⚠️ DART 서버 접속 대기 시간이 초과되었습니다. 잠시 후 새로고침해 주세요.")
+                return pd.DataFrame()
+            continue
+
+    return pd.DataFrame()@st.cache_data(ttl=180)
 def fetch_realtime_dart_ca_events(api_key):
     """DART API를 통해 최근 7일간의 Corporate Action 공시 수집 및 분류"""
     if not api_key:
