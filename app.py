@@ -21,7 +21,12 @@ from bs4 import BeautifulSoup
 from pykrx import stock
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="Arbitrage CA & Flow Dashboard", layout="wide")
+# 페이지 기본 설정
+st.set_page_config(
+    page_title="차익/비차익 모니터링 시스템 | 한국투자증권",
+    page_icon="📈",
+    layout="wide"
+)
 
 # ==============================================================================
 # 1. Secrets 및 데이터 수집 함수
@@ -58,7 +63,6 @@ def fetch_kospi200_heatmap_data(target_date):
         df_k200['등락률_str'] = df_k200['등락률'].apply(lambda x: f"{x:+.2f}%")
         return df_k200
     except Exception:
-        # PyKRX 오류 시 샘플 데이터
         sample = pd.DataFrame([
             {"종목명": "삼성전자", "시가총액": 450000000000000, "등락률": 1.5, "등락률_str": "+1.50%", "종가": 75000},
             {"종목명": "SK하이닉스", "시가총액": 130000000000000, "등락률": -0.8, "등락률_str": "-0.80%", "종가": 185000},
@@ -80,7 +84,6 @@ def fetch_investor_flow_data(target_date):
         df_trend['기관'] = df_inv['기관합계'].cumsum() / 100000000
         df_trend['개인'] = df_inv['개인'].cumsum() / 100000000
         
-        # 프로그램 매매
         df_prog = stock.get_market_program_by_date(target_date, target_date, "KOSPI")
         prog_arbitrage = df_prog['차익순매수'].iloc[0] / 100000000 if not df_prog.empty else 120.0
         prog_non_arbitrage = df_prog['비차익순매수'].iloc[0] / 100000000 if not df_prog.empty else -450.0
@@ -175,12 +178,23 @@ def fetch_index_rebalance_data():
     return pd.DataFrame(rebalance_list)
 
 # ==============================================================================
-# Main App Header
+# Header UI (한국투자증권 브랜드 적용)
 # ==============================================================================
-st.title("📈 KOSPI 200 특수상황 & 수급 차익거래 통합 대시보드")
-st.caption(f"KRX / PyKRX / DART API 연동 | 기준일자: {get_recent_trade_date()} | 갱신시간: {datetime.now().strftime('%H:%M:%S')}")
+logo_url = "https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f4c8.png" 
 
-# 메인 탭 4개 생성
+header_col1, header_col2 = st.columns([1, 6])
+
+with header_col1:
+    # 한국투자증권 로고 이미지 (공식 웹 로고)
+    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Korea_Investment_%26_Securities_Logo_KR.png/320px-Korea_Investment_%26_Securities_Logo_KR.png", width=170)
+
+with header_col2:
+    st.markdown("<h1 style='margin-bottom:0px; padding-top:0px;'>Delta 1 모니터링 시스템</h1>", unsafe_allow_html=True)
+    st.caption(f"한국투자증권 Delta 1 트레이딩 / Arbitrage Desk | 영업일 기준: {get_recent_trade_date()} | 갱신: {datetime.now().strftime('%H:%M:%S')}")
+
+st.markdown("---")
+
+# 메인 탭 4개
 main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs([
     "📊 [1] 시장 에너지 & 수급 추이",
     "🚨 [2] DART 실시간 CA 모니터링",
@@ -189,7 +203,7 @@ main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs([
 ])
 
 # ==============================================================================
-# TAB 1: KOSPI 200 히트맵 & 주체별 수급/프로그램 매매
+# TAB 1: KOSPI 200 히트맵 & 수급
 # ==============================================================================
 with main_tab1:
     target_date = get_recent_trade_date()
@@ -197,7 +211,7 @@ with main_tab1:
     df_trend, prog_arb, prog_non_arb = fetch_investor_flow_data(target_date)
 
     st.subheader("🔥 KOSPI 200 시가총액 & 등락률 히트맵")
-    st.caption("상자의 크기는 시가총액, 색상은 당일 등락률을 나타냅니다 (빨강: 상승, 파랑: 하락)")
+    st.caption("타일 크기: 시가총액 | 타일 색상: 당일 등락률 (빨강: 상승, 파랑: 하락)")
 
     fig_tree = px.treemap(
         df_k200,
@@ -220,7 +234,7 @@ with main_tab1:
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        st.subheader("📈 주요 투자주체별 누적 순매수 추이 ( 최근 20영업일 )")
+        st.subheader("📈 주요 투자주체별 누적 순매수 추이 (최근 20영업일)")
         fig_flow = go.Figure()
         fig_flow.add_trace(go.Scatter(x=df_trend.index, y=df_trend['외국인'], mode='lines+markers', name='외국인', line=dict(color='#ef5350', width=2)))
         fig_flow.add_trace(go.Scatter(x=df_trend.index, y=df_trend['기관'], mode='lines+markers', name='기관', line=dict(color='#66bb6a', width=2)))
@@ -247,7 +261,7 @@ with main_tab1:
         st.plotly_chart(fig_prog, use_container_width=True)
 
 # ==============================================================================
-# TAB 2: DART 실시간 CA 스캐너
+# TAB 2: DART CA
 # ==============================================================================
 with main_tab2:
     st.subheader("🚨 DART 실시간 Corporate Action (CA) 모니터링 (최근 7일)")
@@ -274,7 +288,7 @@ with main_tab2:
     with sub_tab5: render_ca_table(df_dart[df_dart["CA 카테고리"] == "자사주 / 유상증자"] if not df_dart.empty else pd.DataFrame())
 
 # ==============================================================================
-# TAB 3: 상장폐지 / 청산가치 스캐너
+# TAB 3: 상장폐지/청산가치
 # ==============================================================================
 with main_tab3:
     st.subheader("⚠️ 상장폐지·재무위기 위험 종목 & 청산가치(Liquidation) 차익거래")
@@ -301,7 +315,7 @@ with main_tab3:
         st.info("현재 포착된 상장폐지 위험/재무위기 관리종목 데이터가 없습니다.")
 
 # ==============================================================================
-# TAB 4: 지수/ETF 리밸런싱 스캐너
+# TAB 4: 리밸런싱
 # ==============================================================================
 with main_tab4:
     st.subheader("📊 지수/ETF 리밸런싱 이벤트 & 외국인·기관 수급 스캐너")
