@@ -4,6 +4,18 @@
 import sys
 import setuptools._distutils as distutils
 import setuptools
+import streamlit as st
+
+# Streamlit 기본 UI 요소(메뉴, 푸터, 헤더) 숨기기
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            [data-testid="stStatusWidget"] {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 try:
     import pkg_resources
