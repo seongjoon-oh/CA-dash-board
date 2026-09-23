@@ -36,6 +36,58 @@ st.set_page_config(
 )
 
 # ==============================================================================
+# Streamlit 우측 하단 프로필 / 푸터 / 툴바 완벽 강제 삭제 (CSS + JS)
+# ==============================================================================
+hide_all_streamlit_elements = """
+<style>
+    /* 1. 기본 헤더, 푸터, 툴바 영역 완전히 제거 */
+    #MainMenu {visibility: hidden !important; display: none !important;}
+    header {visibility: hidden !important; display: none !important;}
+    footer {visibility: hidden !important; display: none !important;}
+    
+    /* 2. Streamlit Cloud 하단 프로필/아바타/버튼 레이어 전체 숨김 */
+    div[data-testid="stHeader"] {display: none !important;}
+    div[data-testid="stToolbar"] {display: none !important;}
+    div[data-testid="stDecoration"] {display: none !important;}
+    div[data-testid="stStatusWidget"] {display: none !important;}
+    div[data-testid="stProfileButton"] {display: none !important;}
+    div[data-testid="stActionButton"] {display: none !important;}
+    
+    /* 3. 하단 호스팅 바 및 아바타 팝업을 포함하는 모든 고정(fixed) 하단 엘리먼트 차단 */
+    div[class*="viewerBadge"] {display: none !important;}
+    div[class*="styles_viewerBadge"] {display: none !important;}
+    iframe[title*="streamlit"] {display: none !important;}
+    
+    /* 하단 클릭 영역 및 시각 요소 무력화 */
+    [data-testid="stAppViewContainer"] ~ div {
+        display: none !important;
+        pointer-events: none !important;
+    }
+</style>
+
+<script>
+    // 페이지 로드 후 우측 하단 프로필/아바타 엘리먼트를 동적으로 찾아 계속 삭제
+    const removeStreamlitBadges = () => {
+        const selectors = [
+            'div[data-testid="stProfileButton"]',
+            'div[data-testid="stToolbar"]',
+            'footer',
+            'a[href*="streamlit.io"]',
+            'div[class*="viewerBadge"]'
+        ];
+        selectors.forEach(selector => {
+            document.querySelectorAll(selector).forEach(el => el.remove());
+        });
+    };
+
+    // 0.5초마다 감시 및 지속 삭제
+    setInterval(removeStreamlitBadges, 500);
+</script>
+"""
+
+st.markdown(hide_all_streamlit_elements, unsafe_allow_html=True)
+
+# ==============================================================================
 # Streamlit 우측 상단/하단 프로필 & GitHub & 헤더/푸터 완벽 제거 CSS
 # ==============================================================================
 hide_streamlit_style = """
