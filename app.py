@@ -23,114 +23,63 @@ from datetime import datetime, timedelta
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="주식 차익 모니터링",
+    page_title="주식차익 모니터링",
     page_icon="📈",
     layout="wide"
-)
-
-# 1. 기존 페이지 설정
-st.set_page_config(
-    page_title="주식 차익 모니터링",
-    page_icon="📈",
-    layout="wide"
-    # ==============================================================================
-
 )
 
 # ==============================================================================
-# Streamlit 우측 하단 프로필 / 푸터 / 툴바 완벽 강제 삭제 (CSS + JS)
+# View Profile / 깃허브 아이콘 / 하단바 완벽 차단 스크립트 (CSS + JS)
 # ==============================================================================
 hide_all_streamlit_elements = """
 <style>
-    /* 1. 기본 헤더, 푸터, 툴바 영역 완전히 제거 */
-    #MainMenu {visibility: hidden !important; display: none !important;}
-    header {visibility: hidden !important; display: none !important;}
-    footer {visibility: hidden !important; display: none !important;}
-    
-    /* 2. Streamlit Cloud 하단 프로필/아바타/버튼 레이어 전체 숨김 */
-    div[data-testid="stHeader"] {display: none !important;}
-    div[data-testid="stToolbar"] {display: none !important;}
-    div[data-testid="stDecoration"] {display: none !important;}
-    div[data-testid="stStatusWidget"] {display: none !important;}
-    div[data-testid="stProfileButton"] {display: none !important;}
-    div[data-testid="stActionButton"] {display: none !important;}
-    
-    /* 3. 하단 호스팅 바 및 아바타 팝업을 포함하는 모든 고정(fixed) 하단 엘리먼트 차단 */
-    div[class*="viewerBadge"] {display: none !important;}
-    div[class*="styles_viewerBadge"] {display: none !important;}
-    iframe[title*="streamlit"] {display: none !important;}
-    
-    /* 하단 클릭 영역 및 시각 요소 무력화 */
-    [data-testid="stAppViewContainer"] ~ div {
-        display: none !important;
-        pointer-events: none !important;
-    }
-
-    /* MANAGE APP 버튼 및 개발자 관리 바 강제 숨김 */
-    [data-testid="stStatusWidget"],
-    [data-testid="stAppViewerToolbar"],
-    button[data-testid="baseButton-header"],
-    div[class*="viewerBadge"],
-    div[class*="stAppViewer"] {
-    display: none !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
-    }
+    /* 내부 CSS 완전 차단 */
+    #MainMenu, header, footer {visibility: hidden !important; display: none !important;}
+    div[data-testid="stHeader"], div[data-testid="stToolbar"], div[data-testid="stDecoration"] {display: none !important;}
+    div[data-testid="stProfileButton"], div[data-testid="stActionButton"] {display: none !important;}
+    [data-testid="stAppViewContainer"] ~ div {display: none !important;}
 </style>
 
 <script>
-    // 페이지 로드 후 우측 하단 프로필/아바타 엘리먼트를 동적으로 찾아 계속 삭제
-    const removeStreamlitBadges = () => {
-        const selectors = [
-            'div[data-testid="stProfileButton"]',
-            'div[data-testid="stToolbar"]',
-            'footer',
-            'a[href*="streamlit.io"]',
-            'div[class*="viewerBadge"]'
-        ];
-        selectors.forEach(selector => {
-            document.querySelectorAll(selector).forEach(el => el.remove());
-        });
+    // 상위 부모 창(parent.document)까지 직접 접근하여 View Profile 및 하단바 감지 후 완전 삭제
+    const purgeStreamlitBadges = () => {
+        try {
+            const targetDocs = [document];
+            if (window.parent && window.parent.document) {
+                targetDocs.push(window.parent.document);
+            }
+
+            const targetSelectors = [
+                'div[data-testid="stProfileButton"]',
+                'div[data-testid="stToolbar"]',
+                'button[title*="View profile"]',
+                'a[href*="streamlit.io"]',
+                'footer',
+                'div[class*="viewerBadge"]',
+                'div[class*="styles_viewerBadge"]',
+                'div[class*="profile"]',
+                'iframe[title*="streamlit"]'
+            ];
+
+            targetDocs.forEach(doc => {
+                targetSelectors.forEach(selector => {
+                    doc.querySelectorAll(selector).forEach(el => {
+                        el.style.display = 'none';
+                        el.style.visibility = 'hidden';
+                        el.remove();
+                    });
+                });
+            });
+        } catch (e) {
+            // Cross-origin 보안 차단 대비 예외 처리
+        }
     };
 
-    // 0.5초마다 감시 및 지속 삭제
-    setInterval(removeStreamlitBadges, 500);
+    // 0.2초마다 무한 감시하여 나타나는 즉시 제거
+    setInterval(purgeStreamlitBadges, 200);
 </script>
 """
-
 st.markdown(hide_all_streamlit_elements, unsafe_allow_html=True)
-
-# ==============================================================================
-# Streamlit 우측 상단/하단 프로필 & GitHub & 헤더/푸터 완벽 제거 CSS
-# ==============================================================================
-hide_streamlit_style = """
-    <style>
-    /* 1. 상단 헤더, 메뉴, Toolbar, 깃허브 아이콘 숨김 */
-    #MainMenu {visibility: hidden !important;}
-    header {visibility: hidden !important;}
-    div[data-testid="stHeader"] {display: none !important;}
-    div[data-testid="stToolbar"] {display: none !important;}
-    div[data-testid="stDecoration"] {display: none !important;}
-    div[data-testid="stStatusWidget"] {display: none !important;}
-    
-    /* 2. 하단 푸터 및 우측 하단 프로필/아바타 아이콘 완벽 제거 */
-    footer {visibility: hidden !important; display: none !important;}
-    footer * {display: none !important;}
-    
-    /* 최신 Streamlit 우측 하단 프로필 아바타 / 액션 버튼 차단 */
-    div[data-testid="stProfileButton"] {display: none !important;}
-    div[data-testid="stActionButton"] {display: none !important;}
-    div[data-testid="stAppViewBlockContainer"] ~ div {display: none !important;}
-    button[title="View app in Streamlit Community Cloud"] {display: none !important;}
-    
-    /* 클릭 영역 자체가 안 잡히도록 pointer-events 무효화 */
-    .stApp > footer, [data-testid="stProfileButton"], [data-testid="stToolbar"] {
-        pointer-events: none !important;
-        opacity: 0 !important;
-    }
-    </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # ==============================================================================
 # 1. Secrets 및 데이터 수집 함수
@@ -157,19 +106,16 @@ def get_recent_trade_date():
 def fetch_etf_nav_deviation_data(target_date):
     """[Module 1-1] 주요 ETF NAV vs 주가 실시간 괴리율 Top 10 수집"""
     try:
-        # pykrx의 ETF 괴리율 함수 호출
         df_dev = stock.get_etf_price_deviation(target_date)
         if not df_dev.empty and '괴리율' in df_dev.columns:
             df_dev['종목명'] = [stock.get_market_ticker_name(ticker) for ticker in df_dev.index]
             df_dev['괴리율_abs'] = df_dev['괴리율'].abs()
-            # Absolute 괴리율 상위 10개 추출
             df_top10 = df_dev.sort_values(by='괴리율_abs', ascending=False).head(10).copy()
             df_top10['유형'] = df_top10['괴리율'].apply(lambda x: '고평가(Premium)' if x > 0 else '저평가(Discount)')
             return df_top10
     except Exception:
         pass
 
-    # pykrx 호출 실패 시 샘플 차익거래 모니터링 데이터 제공
     sample_data = pd.DataFrame([
         {"종목코드": "069500", "종목명": "KODEX 200", "종가": 35450, "NAV": 35210.50, "괴리율": 0.68, "유형": "고평가(Premium)"},
         {"종목코드": "102110", "종목명": "TIGER 200", "종가": 35380, "NAV": 35520.10, "괴리율": -0.39, "유형": "저평가(Discount)"},
@@ -290,11 +236,8 @@ def fetch_index_rebalance_data():
     return pd.DataFrame(rebalance_list)
 
 # ==============================================================================
-# Header UI (한국투자증권 임베디드 SVG 로고 & 헤더 스타일링)
+# Header UI
 # ==============================================================================
-# 외부 이미지 링크 끊김 문제를 완벽 방지하는 한국투자증권 공식 컬러 엠블럼 SVG
-logo_svg_base64 = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 60'><rect width='320' height='60' fill='%23002D62' rx='6'/><path d='M25 15 H55 V23 H25 Z M25 28 H55 V36 H25 Z M25 41 H55 V45 H25 Z M65 15 H75 V45 H65 Z M85 15 H115 V23 H85 Z M95 23 H105 V45 H95 Z' fill='%23FFFFFF'/><text x='70' y='38' font-family='Arial, sans-serif' font-weight='bold' font-size='20' fill='%23FFFFFF'>Korea Investment</text></svg>"
-
 logo_header_html = f"""
 <div style="display: flex; align-items: center; gap: 18px; padding: 12px 18px; background-color: #0d1117; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 20px;">
     <div style="background-color: #002D62; padding: 6px 14px; border-radius: 6px; display: flex; align-items: center; justify-content: center;">
@@ -304,7 +247,7 @@ logo_header_html = f"""
     </div>
     <div style="border-left: 2px solid #30363d; padding-left: 16px;">
         <h1 style="margin: 0; padding: 0; font-size: 1.8rem; font-weight: 700; color: #f0f6fc; line-height: 1.2;">
-            차익/비차익 모니터링
+            주식차익 모니터링
         </h1>
         <p style="margin: 4px 0 0 0; color: #8b949e; font-size: 0.85rem;">
             최근 영업일: <b style="color: #58a6ff;">{get_recent_trade_date()}</b> | 실시간 갱신: <b style="color: #3fb950;">{datetime.now().strftime('%H:%M:%S')}</b>
@@ -335,7 +278,6 @@ with main_tab1:
     st.caption("양수(+): 시장가 고평가(Premium/차익매도 기회) | 음수(-): 시장가 저평가(Discount/차익매수 기회)")
 
     if not df_dev.empty:
-        # 괴리율 순으로 정렬
         df_dev_sorted = df_dev.sort_values(by='괴리율', ascending=True)
 
         fig_bar = go.Figure()
@@ -362,7 +304,6 @@ with main_tab1:
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-        # 세부 테이블 표출
         with st.expander("📋 ETF 괴리율 상세 데이터 보기", expanded=False):
             st.dataframe(
                 df_dev[['종목명', '종가', 'NAV', '괴리율', '유형']],
