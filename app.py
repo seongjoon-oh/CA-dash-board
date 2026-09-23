@@ -63,6 +63,17 @@ hide_all_streamlit_elements = """
         display: none !important;
         pointer-events: none !important;
     }
+
+    /* MANAGE APP 버튼 및 개발자 관리 바 강제 숨김 */
+    [data-testid="stStatusWidget"],
+    [data-testid="stAppViewerToolbar"],
+    button[data-testid="baseButton-header"],
+    div[class*="viewerBadge"],
+    div[class*="stAppViewer"] {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    }
 </style>
 
 <script>
