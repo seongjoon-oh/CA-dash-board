@@ -35,17 +35,36 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. 우측 상단 GitHub/메뉴 아이콘 및 우측 하단 프로필/Footer 숨기기 (이 코드를 추가하세요!)
+# ==============================================================================
+# Streamlit 우측 상단/하단 프로필 & GitHub & 헤더/푸터 완벽 제거 CSS
+# ==============================================================================
 hide_streamlit_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            header {visibility: hidden;}
-            footer {visibility: hidden;}
-            div[data-testid="stToolbar"] {visibility: hidden !important;}
-            div[data-testid="stDecoration"] {visibility: hidden !important;}
-            div[data-testid="stStatusWidget"] {visibility: hidden !important;}
-            </style>
-            """
+    <style>
+    /* 1. 상단 헤더, 메뉴, Toolbar, 깃허브 아이콘 숨김 */
+    #MainMenu {visibility: hidden !important;}
+    header {visibility: hidden !important;}
+    div[data-testid="stHeader"] {display: none !important;}
+    div[data-testid="stToolbar"] {display: none !important;}
+    div[data-testid="stDecoration"] {display: none !important;}
+    div[data-testid="stStatusWidget"] {display: none !important;}
+    
+    /* 2. 하단 푸터 및 우측 하단 프로필/아바타 아이콘 완벽 제거 */
+    footer {visibility: hidden !important; display: none !important;}
+    footer * {display: none !important;}
+    
+    /* 최신 Streamlit 우측 하단 프로필 아바타 / 액션 버튼 차단 */
+    div[data-testid="stProfileButton"] {display: none !important;}
+    div[data-testid="stActionButton"] {display: none !important;}
+    div[data-testid="stAppViewBlockContainer"] ~ div {display: none !important;}
+    button[title="View app in Streamlit Community Cloud"] {display: none !important;}
+    
+    /* 클릭 영역 자체가 안 잡히도록 pointer-events 무효화 */
+    .stApp > footer, [data-testid="stProfileButton"], [data-testid="stToolbar"] {
+        pointer-events: none !important;
+        opacity: 0 !important;
+    }
+    </style>
+"""
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # ==============================================================================
