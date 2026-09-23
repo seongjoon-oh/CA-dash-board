@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="차익/비차익 모니터링",
+    page_title="주식 차익 모니터링",
     page_icon="📈",
     layout="wide"
 )
