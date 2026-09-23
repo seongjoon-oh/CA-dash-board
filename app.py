@@ -34,59 +34,7 @@ st.set_page_config(
     page_icon="📈",
     layout="wide"
     # ==============================================================================
-# Streamlit Cloud 우측 하단 View Profile / 푸터 / 툴바 완벽 강제 삭제
-# ==============================================================================
-hide_profile_and_toolbar = """
-<style>
-    /* 1. 내부 CSS 완전 차단 */
-    #MainMenu, header, footer {visibility: hidden !important; display: none !important;}
-    div[data-testid="stHeader"], div[data-testid="stToolbar"], div[data-testid="stDecoration"] {display: none !important;}
-    div[data-testid="stProfileButton"], div[data-testid="stActionButton"] {display: none !important;}
-    [data-testid="stAppViewContainer"] ~ div {display: none !important;}
-</style>
 
-<script>
-    // 상위 부모 창(parent.document)까지 접근하여 View Profile 및 하단바 완전 제거
-    const purgeStreamlitBadges = () => {
-        try {
-            // 현재 문서 및 상위 부모 문서 모두 탐색
-            const targetDocs = [document];
-            if (window.parent && window.parent.document) {
-                targetDocs.push(window.parent.document);
-            }
-
-            const targetSelectors = [
-                'div[data-testid="stProfileButton"]',
-                'div[data-testid="stToolbar"]',
-                'button[title*="View profile"]',
-                'a[href*="streamlit.io"]',
-                'footer',
-                'div[class*="viewerBadge"]',
-                'div[class*="styles_viewerBadge"]',
-                'div[class*="profile"]',
-                'iframe[title*="streamlit"]'
-            ];
-
-            targetDocs.forEach(doc => {
-                targetSelectors.forEach(selector => {
-                    doc.querySelectorAll(selector).forEach(el => {
-                        el.style.display = 'none';
-                        el.style.visibility = 'hidden';
-                        el.remove();
-                    });
-                });
-            });
-        } catch (e) {
-            // Cross-origin 방어
-        }
-    };
-
-    // 0.3초 간격으로 무한 모니터링하여 생기는 즉시 삭제
-    setInterval(purgeStreamlitBadges, 300);
-</script>
-"""
-
-st.markdown(hide_profile_and_toolbar, unsafe_allow_html=True)
 )
 
 # ==============================================================================
