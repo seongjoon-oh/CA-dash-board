@@ -28,6 +28,26 @@ st.set_page_config(
     layout="wide"
 )
 
+# 1. 기존 페이지 설정
+st.set_page_config(
+    page_title="차익/비차익 모니터링",
+    page_icon="📈",
+    layout="wide"
+)
+
+# 2. 우측 상단 GitHub/메뉴 아이콘 및 우측 하단 프로필/Footer 숨기기 (이 코드를 추가하세요!)
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            header {visibility: hidden;}
+            footer {visibility: hidden;}
+            div[data-testid="stToolbar"] {visibility: hidden !important;}
+            div[data-testid="stDecoration"] {visibility: hidden !important;}
+            div[data-testid="stStatusWidget"] {visibility: hidden !important;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # ==============================================================================
 # 1. Secrets 및 데이터 수집 함수
 # ==============================================================================
